@@ -1,27 +1,23 @@
 # Challenge Técnico - Microservicios Forex
 
-## Estructura del Proyecto
+## Arquitectura General
 
 ```
-prueba-tec-sprinboot/
-├── forex-api/           # Microservicio 1 - API de tasas de cambio
-│   └── Puerto: 8080
-│
-└── history-api/         # Microservicio 2 - Historial de conversiones (H2)
-    └── Puerto: 8081
+Usuario
+   │
+   ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  FOREX API (Puerto 8080)                     │
+│  Controller → Service → FrankfurterRepository (API externa) │
+│              ↘️→ HistoryClient → HTTP POST                   │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  HISTORY API (Puerto 8081)                   │
+│  Controller → Service → Repository → H2 Database           │
+└─────────────────────────────────────────────────────────────┘
 ```
-
-## Tecnologías Usadas
-
-| Requisito | Implementado |
-|-----------|-------------|
-| Spring Boot 3.x + Java 17 | ✅ |
-| WebClient (comunicación HTTP reactiva) | ✅ |
-| Programación Funcional (Streams, Lambdas, Optional) | ✅ |
-| WebFlux (endpoints reactivos) | ✅ |
-| H2 Database | ✅ |
-| JUnit 5 + Mockito | ✅ |
-| 2 Microservicios comunicándose | ✅ |
 
 ## Endpoints
 
@@ -41,6 +37,88 @@ prueba-tec-sprinboot/
 | GET | `/history/user/{userId}` | Historial por usuario |
 | GET | `/history/{id}` | Ver una conversión |
 | POST | `/history` | Guardar conversión |
+
+## Entidades y Lógica de Negocio
+
+### ¿Qué pasa cuando conviertes moneda?
+
+```
+POST /forex/convert
+{ "from": "EUR", "to": "USD", "amount": 100, "userId": "juan" }
+
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  1. VALIDAR                                               │
+│     - from/to = 3 letras mayúsculas                       │
+│     - amount > 0                                           │
+│     - from != to                                          │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2. OBTENER TASA (Frankfurter API)                        │
+│     GET /latest?base=EUR&symbols=USD                      │
+│     → {"base": "EUR", "rates": {"USD": 1.1547}}         │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  3. CALCULAR                                              │
+│     result = amount × rate                                │
+│     100 × 1.1547 = 115.47                                 │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  4. GUARDAR EN HISTORIA (History API)                     │
+│     POST /history {fromCurrency, toCurrency, amount...}   │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│  5. RESPONDER                                             │
+│     {from, to, amount, rate, result, date}                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Entidades y DTOs
+
+| Clase | Tipo | Uso |
+|-------|------|-----|
+| `ConversionHistory` | Entity (JPA) | Se guarda en H2 |
+| `ConversionRecord` | Record (DTO) | Comunicación entre servicios |
+| `CurrencyConversionRequest` | DTO | Lo que mandas al API |
+| `CurrencyConversionResponse` | DTO | Lo que recibes del API |
+
+### ¿Por qué separate Entidad y DTO?
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ConversionHistory (Entity)                                 │
+│  - Mutable (setters)                                       │
+│  - Anotaciones @Entity, @Column                            │
+│  - Solo vive en history-api                                │
+└─────────────────────────────────────────────────────────────┘
+                           │ mapper
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ConversionRecord (Record)                                  │
+│  - Inmutable                                               │
+│  - Sin setters, menos código                               │
+│  - Viaja entre forex-api y history-api                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Por qué BigDecimal para dinero?
+
+```java
+// ❌ Double tiene errores de precisión
+double x = 0.1 + 0.2;  // 0.30000000000000004
+
+// ✅ BigDecimal es exacto
+BigDecimal x = new BigDecimal("0.1").add(new BigDecimal("0.2"));  // 0.3
+```
 
 ## Comunicación entre Microservicios
 
@@ -105,39 +183,34 @@ curl -X POST http://localhost:8080/forex/convert \
 curl http://localhost:8081/history/user/juan
 ```
 
-## Programación Funcional
+## Conceptos Clave
+
+### Programación Funcional (Optional, Predicate, Lambda)
 
 ```java
-// Optional para evitar NullPointerException
-Optional.ofNullable(base)
+// Predicate: validar moneda (reusable, inmutable)
+private static final Predicate<String> IS_VALID_CURRENCY = currency ->
+    Optional.ofNullable(currency)
+        .map(String::trim)
+        .filter(c -> !c.isEmpty())
+        .isPresent();
+
+// Uso: código limpio, sin if/else
+return Optional.ofNullable(base)
     .filter(IS_VALID_CURRENCY)
-    .map(this::fetchRates)
-
-// Streams para filtrar
-rates.entrySet().stream()
-    .filter(entry -> symbolFilter.test(entry.getKey()))
-    .collect(Collectors.toMap())
-
-// Lambdas y Predicates
-private static final Predicate<String> IS_VALID_CURRENCY = currency -> ...
-
-// Supplier para excepciones
-private static final Supplier<ForexApiException> ERROR = () -> ...
+    .map(this::executeLatestRatesFetch)
+    .orElseThrow(VALIDATION_ERROR);
 ```
 
-## Records de Java 17
+### Records (Java 17)
 
 ```java
-// DTO inmutable
+// DTO inmutable - sin getters/setters/equals/hashCode
 public record ConversionRecord(
     Long id,
     String fromCurrency,
-    String toCurrency,
     BigDecimal amount,
-    BigDecimal result,
-    BigDecimal rate,
-    LocalDateTime conversionDate,
-    String userId
+    BigDecimal result
 ) {}
 ```
 
@@ -173,43 +246,21 @@ cd forex-api && ./gradlew bootRun
 cd history-api && ./gradlew bootRun --args='--server.port=8081'
 ```
 
-## Diferencia entre Repositorios
+## Diferencia entre Componentes
 
-Es importante entender que existen **dos tipos de repositorios** en esta arquitectura:
+| Componente | Tipo | Qué hace |
+|------------|------|----------|
+| `FrankfurterRepository` | Cliente HTTP (WebClient) | Consume API externa frankfurter.app |
+| `HistoryClient` | Cliente HTTP (WebClient) | Llama a History API (otro microservicio) |
+| `ConversionHistoryRepository` | JPA Repository | Accede a H2 (base de datos) |
 
-### 1. ConversionHistoryRepository (JPA Repository)
-- **Acceso**: Base de datos local (H2)
-- **Función**: Persiste y consulta el historial de conversiones
-- **Extiende**: `JpaRepository<ConversionHistory, Long>`
-- **Ubicación**: `history-api/src/main/java/com/history/api/repository/`
+> **Nota**: "FrankfurterRepository" debería llamarse "FrankfurterClient" - no es JPA, es un cliente HTTP.
 
-```java
-// Acceso a BD local - métodos derivados de Spring Data
-List<ConversionHistory> findByUserIdOrderByConversionDateDesc(String userId);
-List<ConversionHistory> findByConversionDateBetween(LocalDateTime start, LocalDateTime end);
-```
+## Tests: 46 total
 
-### 2. FrankfurterRepository (Cliente HTTP)
-- **Acceso**: API externa (frankfurter.app - tasas de cambio)
-- **Función**: Consume servicios web externos
-- **NO es un JPA Repository**: Es un cliente REST con WebClient
-- **Ubicación**: `forex-api/src/main/java/com/forex/api/repository/`
+| Microservicio | Tests |
+|---------------|-------|
+| forex-api (Service + Controller) | 25 |
+| history-api (Service + Controller) | 21 |
 
-```java
-// Consumo de API externa - NO accede a base de datos
-public FrankfurterResponse getLatestRates(String base, String symbols) {
-    return webClient.get()
-            .uri("https://api.frankfurter.app/latest?base=" + base)
-            .retrieve()
-            .bodyToMono(FrankfurterResponse.class)
-            .block();
-}
-```
-
-> **Nota técnica**: El nombre "FrankfurterRepository" es un nombre histórico. Técnicamente debería llamarse `FrankfurterClient` o `FrankfurterService` ya que sigue el patrón de **Integration Adapter** (consumo de APIs externas), no el patrón Repository tradicional (acceso a datos locales).
-
-## Base de Datos H2
-
-El historial se guarda en H2 en memoria:
-- URL: `jdbc:h2:mem:historydb`
-- Consola: `http://localhost:8081/h2-console`
+Ejecutar: `./gradlew test`

@@ -11,6 +11,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 
+/**
+ * REST Controller (WebFlux) - Endpoints para historial de conversiones.
+ * Usa Mono/Flux para programación reactiva.
+ */
 @RestController
 @RequestMapping("/history")
 @RequiredArgsConstructor
@@ -19,53 +23,59 @@ public class HistoryController {
     
     private final HistoryService historyService;
     
+    /**
+     * POST /history - Guarda una conversión.
+     * @param record Datos de la conversión
+     */
     @PostMapping
     public Mono<ResponseEntity<ConversionRecord>> saveConversion(@RequestBody ConversionRecord record) {
-        log.info("Recibida solicitud para guardar conversión: {}", record);
-        
         return historyService.saveConversion(record)
             .map(saved -> ResponseEntity.ok(saved))
             .defaultIfEmpty(ResponseEntity.badRequest().build());
     }
     
+    /**
+     * GET /history/user/{userId} - Historial de un usuario.
+     * @param userId ID del usuario
+     */
     @GetMapping("/user/{userId}")
     public Flux<ConversionRecord> getHistoryByUser(@PathVariable String userId) {
-        log.info("Obteniendo historial para usuario: {}", userId);
-        
         return historyService.getHistoryByUser(userId);
     }
     
+    /**
+     * GET /history/{id} - Obtiene una conversión por ID.
+     * @param id ID de la conversión
+     */
     @GetMapping("/{id}")
     public Mono<ResponseEntity<ConversionRecord>> getConversionById(@PathVariable Long id) {
-        log.info("Obteniendo conversión con ID: {}", id);
-        
         return historyService.getConversionById(id)
             .map(ResponseEntity::ok)
             .defaultIfEmpty(ResponseEntity.notFound().build());
     }
     
+    /**
+     * GET /history - Obtiene todo el historial.
+     */
     @GetMapping
     public Flux<ConversionRecord> getAllHistory() {
-        log.info("Obteniendo todo el historial");
-        
         return historyService.getAllHistory();
     }
     
+    /**
+     * GET /history/between?start=...&end=... - Historial entre fechas.
+     * @param start Fecha inicio (ISO format)
+     * @param end Fecha fin
+     */
     @GetMapping("/between")
     public ResponseEntity<?> getConversionsBetweenDates(
             @RequestParam String start,
             @RequestParam String end) {
-        
-        log.info("Obteniendo conversiones entre {} y {}", start, end);
-        
         try {
             LocalDateTime startDate = LocalDateTime.parse(start);
             LocalDateTime endDate = LocalDateTime.parse(end);
-            
-            var result = historyService.getConversionsBetweenDates(startDate, endDate);
-            return ResponseEntity.ok(result);
+            return ResponseEntity.ok(historyService.getConversionsBetweenDates(startDate, endDate));
         } catch (Exception e) {
-            log.error("Error al obtener conversiones entre fechas: {}", e.getMessage());
             return ResponseEntity.badRequest().body("Formato de fecha inválido. Use ISO format.");
         }
     }

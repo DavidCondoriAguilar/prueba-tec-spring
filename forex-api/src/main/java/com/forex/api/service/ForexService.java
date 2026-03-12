@@ -23,6 +23,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+/**
+ * Service - Lógica de negocio para operaciones de forex.
+ * Valida, obtiene tasas de API externa y calcula conversiones.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -32,29 +36,26 @@ public class ForexService {
     private final ForexMapper mapper;
     private final ForexValidator validator;
     
+    // Exceptions factory
     private static final Supplier<ForexApiException> VALIDATION_ERROR = () ->
         new ForexApiException("Error de validación en los parámetros proporcionados", 400);
     
     private static final Supplier<ForexApiException> CONVERSION_ERROR = () ->
         new ForexApiException("No se encontró tasa de cambio para la conversión solicitada", 404);
     
-    private static final Consumer<String> VALIDATE_CURRENCY = currency ->
-        Optional.ofNullable(currency)
-            .filter(c -> !c.trim().isEmpty())
-            .ifPresentOrElse(
-                c -> {},
-                () -> { throw VALIDATION_ERROR.get(); }
-            );
-    
+    // Predicate para validar moneda (inmutable, reutilizable)
     private static final Predicate<String> IS_VALID_CURRENCY = currency ->
         Optional.ofNullable(currency)
             .map(String::trim)
             .filter(c -> !c.isEmpty())
             .isPresent();
     
+    /**
+     * Obtiene tasas de cambio actuales.
+     * @param base Moneda base (EUR por defecto)
+     * @param symbols Monedas objetivo (opcional)
+     */
     public ForexRatesResponse getLatestRates(String base, String symbols) {
-        log.info("Fetching latest rates for base: {}, symbols: {}", base, symbols);
-        
         return Optional.ofNullable(base)
             .filter(IS_VALID_CURRENCY)
             .map(validBase -> executeLatestRatesFetch(validBase, symbols))
@@ -74,9 +75,13 @@ public class ForexService {
             .orElseThrow(() -> new ForexApiException("No se pudieron obtener las tasas de cambio", 404));
     }
     
+    /**
+     * Obtiene tasas históricas para una fecha específica.
+     * @param date Fecha en formato YYYY-MM-DD
+     * @param base Moneda base
+     * @param symbols Monedas objetivo
+     */
     public ForexRatesResponse getHistoricalRates(String date, String base, String symbols) {
-        log.info("Fetching historical rates for date: {}, base: {}, symbols: {}", date, base, symbols);
-        
         return Optional.ofNullable(date)
             .filter(IS_VALID_CURRENCY)
             .map(validDate -> executeHistoricalRatesFetch(validDate, base, symbols))
@@ -95,20 +100,21 @@ public class ForexService {
             .ifPresent(validator::validateCurrencySymbols);
         
         String effectiveBase = Optional.ofNullable(base).orElse("EUR");
-        String effectiveSymbols = symbols;
         
-        FrankfurterResponse response = repository.getHistoricalRates(date, effectiveBase, effectiveSymbols);
+        FrankfurterResponse response = repository.getHistoricalRates(date, effectiveBase, symbols);
         
         return Optional.ofNullable(response)
             .map(mapper::toForexRate)
             .map(mapper::toForexRatesResponse)
-            .orElseThrow(() -> new ForexApiException("No se encontraron datos históricos para la fecha: " + date, 404));
+            .orElseThrow(() -> new ForexApiException("No se encontraron datos históricos para: " + date, 404));
     }
     
+    /**
+     * Convierte moneda: obtiene tasa, calcula resultado y guarda en historial.
+     * @param request {from, to, amount, userId}
+     * @return {from, to, amount, rate, result, date}
+     */
     public CurrencyConversionResponse convertCurrency(CurrencyConversionRequest request) {
-        log.info("Converting currency from: {} to: {}, amount: {}", 
-            request.getFrom(), request.getTo(), request.getAmount());
-        
         return Optional.ofNullable(request)
             .filter(this::isValidConversionRequest)
             .map(this::performConversion)
@@ -124,7 +130,6 @@ public class ForexService {
     
     private CurrencyConversionResponse performConversion(CurrencyConversionRequest request) {
         FrankfurterResponse response = repository.getLatestRates(request.getFrom(), request.getTo());
-        
         return extractConversionResult(response, request);
     }
     
@@ -148,12 +153,12 @@ public class ForexService {
             .orElseThrow(CONVERSION_ERROR);
     }
     
+    /**
+     * Obtiene tasas con filtro personalizado (uso interno/demostración de Streams).
+     */
     public Map<String, Double> getRatesWithFilter(String base, String symbols, 
                                                    java.util.function.Predicate<String> symbolFilter) {
-        log.debug("Fetching rates with custom filter for base: {}, symbols: {}", base, symbols);
-        
         String effectiveBase = Optional.ofNullable(base).orElse("EUR");
-        
         FrankfurterResponse response = repository.getLatestRates(effectiveBase, symbols);
         
         return Optional.ofNullable(response)

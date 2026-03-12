@@ -8,6 +8,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+/**
+ * Client HTTP - Comunica con History API (otro microservicio).
+ * Usa WebClient reactivo para llamadas HTTP.
+ */
 @Component
 public class HistoryClient {
     
@@ -19,6 +23,15 @@ public class HistoryClient {
             .build();
     }
     
+    /**
+     * Guarda conversión en History API via HTTP POST.
+     * @param from Moneda origen
+     * @param to Moneda destino
+     * @param amount Monto original
+     * @param result Monto convertido
+     * @param rate Tasa de cambio
+     * @param userId ID del usuario
+     */
     public Mono<Map> saveConversion(String from, String to, BigDecimal amount, 
                                     BigDecimal result, BigDecimal rate, String userId) {
         Map<String, Object> request = Map.of(

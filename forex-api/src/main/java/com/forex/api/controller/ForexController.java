@@ -13,15 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * REST Controller for Forex API endpoints.
- * 
- * This class provides HTTP endpoints for forex rate operations including
- * latest rates, historical rates, and currency conversion. Implements
- * RESTful principles with proper HTTP methods, status codes, and error handling.
- * 
- * @author Forex API Team
- * @version 1.0
- * @since 2026-02-02
+ * REST Controller - Endpoints para tasas de cambio y conversión de divisas.
+ * Expone API RESTful para operaciones de forex.
  */
 @RestController
 @RequestMapping("/forex")
@@ -29,65 +22,41 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 public class ForexController {
     
-    /**
-     * Service layer for business logic operations.
-     * Handles validation, data transformation, and external API communication.
-     */
     private final ForexService forexService;
     
     /**
-     * Retrieves latest forex rates based on query parameters.
-     * 
-     * HTTP Method: GET
-     * Endpoint: /forex/latest
-     * 
-     * @param base Base currency code (optional, defaults to EUR if not provided)
-     * @param symbols Comma-separated target currency symbols (optional, defaults to all currencies)
-     * @return ResponseEntity containing ForexRatesResponse with current rates
+     * GET /forex/latest - Obtiene tasas de cambio actuales.
+     * @param base Moneda base (default: EUR)
+     * @param symbols Monedas objetivo (opcional)
      */
     @GetMapping("/latest")
     public ResponseEntity<ForexRatesResponse> getLatestRates(
             @RequestParam(defaultValue = "EUR") String base,
             @RequestParam(required = false) String symbols) {
-        
-        ForexRatesResponse response = forexService.getLatestRates(base, symbols);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(forexService.getLatestRates(base, symbols));
     }
     
     /**
-     * Retrieves historical forex rates for a specific date.
-     * 
-     * HTTP Method: GET
-     * Endpoint: /forex/historical
-     * 
-     * @param date Target date in YYYY-MM-DD format (required)
-     * @param base Base currency code (optional, defaults to EUR if not provided)
-     * @param symbols Comma-separated target currency symbols (optional, defaults to all currencies)
-     * @return ResponseEntity containing ForexRatesResponse with historical rates
+     * GET /forex/historical - Obtiene tasas históricas.
+     * @param date Fecha en formato YYYY-MM-DD
+     * @param base Moneda base (default: EUR)
+     * @param symbols Monedas objetivo (opcional)
      */
     @GetMapping("/historical")
     public ResponseEntity<ForexRatesResponse> getHistoricalRates(
             @RequestParam String date,
             @RequestParam(defaultValue = "EUR") String base,
             @RequestParam(required = false) String symbols) {
-        
-        ForexRatesResponse response = forexService.getHistoricalRates(date, base, symbols);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(forexService.getHistoricalRates(date, base, symbols));
     }
     
     /**
-     * Performs currency conversion between two currencies.
-     * 
-     * HTTP Method: POST
-     * Endpoint: /forex/convert
-     * 
-     * @param request Request body containing conversion parameters
-     * @return ResponseEntity containing CurrencyConversionResponse with conversion result
+     * POST /forex/convert - Convierte moneda de una a otra.
+     * @param request {from, to, amount, userId}
      */
     @PostMapping("/convert")
-    public ResponseEntity<CurrencyConversionResponse> convertCurrency(@Valid @RequestBody CurrencyConversionRequest request) {
-        
-        CurrencyConversionResponse response = forexService.convertCurrency(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<CurrencyConversionResponse> convertCurrency(
+            @Valid @RequestBody CurrencyConversionRequest request) {
+        return ResponseEntity.ok(forexService.convertCurrency(request));
     }
 }

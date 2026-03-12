@@ -16,6 +16,10 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * Service - Lógica de negocio para historial de conversiones.
+ * Usa programación reactiva (Mono/Flux) con JPA blocking.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -23,10 +27,7 @@ public class HistoryService {
     
     private final ConversionHistoryRepository repository;
     
-    private static final Consumer<ConversionHistory> LOG_SAVE = history -> 
-        log.info("Guardando conversión: {} -> {} por usuario: {}", 
-            history.getFromCurrency(), history.getToCurrency(), history.getUserId());
-    
+    // Predicate para validar historial antes de guardar
     private static final Predicate<ConversionHistory> IS_VALID_HISTORY = history ->
         Optional.ofNullable(history)
             .filter(h -> h.getFromCurrency() != null && !h.getFromCurrency().isEmpty())
@@ -34,56 +35,57 @@ public class HistoryService {
             .filter(h -> h.getAmount() != null && h.getAmount().compareTo(java.math.BigDecimal.ZERO) > 0)
             .isPresent();
     
+    /**
+     * Guarda una conversión en la base de datos.
+     * @param record Datos de la conversión
+     * @return ConversionRecord guardado o vacío si falla
+     */
     public Mono<ConversionRecord> saveConversion(ConversionRecord record) {
-        log.info("Guardando conversión: {} -> {} amount: {}", 
-            record.fromCurrency(), record.toCurrency(), record.amount());
-        
         ConversionHistory history = toEntity(record);
         
         return Mono.fromCallable(() -> history)
-            .filter(h -> IS_VALID_HISTORY.test(h))
-            .doOnNext(LOG_SAVE)
+            .filter(IS_VALID_HISTORY)
             .map(repository::save)
             .map(this::toRecord)
-            .onErrorResume(e -> {
-                log.error("Error al guardar conversión: {}", e.getMessage());
-                return Mono.empty();
-            });
+            .onErrorResume(e -> Mono.empty());
     }
     
+    /**
+     * Obtiene historial de un usuario ordenado por fecha descendente.
+     * @param userId ID del usuario
+     */
     public Flux<ConversionRecord> getHistoryByUser(String userId) {
-        log.debug("Obteniendo historial para usuario: {}", userId);
-        
         List<ConversionHistory> list = repository.findByUserIdOrderByConversionDateDesc(userId);
-        
-        return Flux.fromIterable(list)
-            .map(this::toRecord)
-            .doOnComplete(() -> log.debug("Historial obtenido para usuario: {}", userId));
+        return Flux.fromIterable(list).map(this::toRecord);
     }
     
+    /**
+     * Obtiene una conversión por su ID.
+     * @param id ID de la conversión
+     */
     public Mono<ConversionRecord> getConversionById(Long id) {
-        log.debug("Obteniendo conversión con ID: {}", id);
-        
-        return Mono.justOrEmpty(repository.findById(id))
-            .map(this::toRecord)
-            .doOnSuccess(record -> log.debug("Conversión encontrada: {}", record));
+        return Mono.justOrEmpty(repository.findById(id)).map(this::toRecord);
     }
     
+    /**
+     * Obtiene conversiones entre dos fechas.
+     * @param start Fecha inicio
+     * @param end Fecha fin
+     */
     public List<ConversionRecord> getConversionsBetweenDates(LocalDateTime start, LocalDateTime end) {
-        log.debug("Obteniendo conversiones entre {} y {}", start, end);
-        
         return repository.findByConversionDateBetween(start, end).stream()
             .map(this::toRecord)
             .collect(Collectors.toList());
     }
     
+    /**
+     * Obtiene todo el historial de conversiones.
+     */
     public Flux<ConversionRecord> getAllHistory() {
-        log.debug("Obteniendo todo el historial");
-        
-        return Flux.fromIterable(repository.findAll())
-            .map(this::toRecord);
+        return Flux.fromIterable(repository.findAll()).map(this::toRecord);
     }
     
+    // Mapper: ConversionRecord → ConversionHistory
     private ConversionHistory toEntity(ConversionRecord record) {
         return ConversionHistory.builder()
             .fromCurrency(record.fromCurrency())
@@ -96,6 +98,7 @@ public class HistoryService {
             .build();
     }
     
+    // Mapper: ConversionHistory → ConversionRecord
     private ConversionRecord toRecord(ConversionHistory entity) {
         return new ConversionRecord(
             entity.getId(),

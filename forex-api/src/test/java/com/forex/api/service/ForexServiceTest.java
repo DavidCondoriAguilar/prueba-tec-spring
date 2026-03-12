@@ -178,7 +178,7 @@ class ForexServiceTest {
         @DisplayName("Should throw exception when conversion request is null")
         void shouldThrowException_WhenRequestIsNull() {
             assertThatThrownBy(() -> forexService.convertCurrency(null))
-                    .isInstanceOf(NullPointerException.class);
+                    .isInstanceOf(ForexApiException.class);
         }
 
         @Test
