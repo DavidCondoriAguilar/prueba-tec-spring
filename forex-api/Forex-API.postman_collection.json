@@ -1,0 +1,233 @@
+{
+	"info": {
+		"_postman_id": "forex-api-spring-boot",
+		"name": "Forex API - Spring Boot",
+		"description": "API REST para consulta de tasas de cambio utilizando Frankfurter API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Latest Rates",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/forex/latest?base=USD&symbols=EUR,GBP,JPY",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"forex",
+						"latest"
+					],
+					"query": [
+						{
+							"key": "base",
+							"value": "USD",
+							"description": "Divisa base (opcional, default: EUR)"
+						},
+						{
+							"key": "symbols",
+							"value": "EUR,GBP,JPY",
+							"description": "Divisas destino separadas por coma (opcional)"
+						}
+					]
+				},
+				"description": "Obtener tasas de cambio actuales para una divisa base"
+			},
+			"response": []
+		},
+		{
+			"name": "Latest Rates - Default EUR",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/forex/latest",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"forex",
+						"latest"
+					]
+				},
+				"description": "Obtener tasas de cambio con divisa base por defecto (EUR)"
+			},
+			"response": []
+		},
+		{
+			"name": "Historical Rates",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/forex/historical?date=2024-12-20&base=USD&symbols=EUR,GBP",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"forex",
+						"historical"
+					],
+					"query": [
+						{
+							"key": "date",
+							"value": "2024-12-20",
+							"description": "Fecha en formato YYYY-MM-DD (requerido)"
+						},
+						{
+							"key": "base",
+							"value": "USD",
+							"description": "Divisa base (opcional, default: EUR)"
+						},
+						{
+							"key": "symbols",
+							"value": "EUR,GBP",
+							"description": "Divisas destino separadas por coma (opcional)"
+						}
+					]
+				},
+				"description": "Obtener tasas de cambio de una fecha específica"
+			},
+			"response": []
+		},
+		{
+			"name": "Currency Conversion",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"from\": \"USD\",\n  \"to\": \"EUR\",\n  \"amount\": 1000\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/forex/convert",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"forex",
+						"convert"
+					]
+				},
+				"description": "Convertir un monto entre divisas"
+			},
+			"response": []
+		},
+		{
+			"name": "Error Tests",
+			"item": [
+				{
+					"name": "Invalid Date",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/forex/historical?date=invalid-date",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"forex",
+								"historical"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "invalid-date"
+								}
+							]
+						},
+						"description": "Probar error de formato de fecha inválido"
+					},
+					"response": []
+				},
+				{
+					"name": "Missing Date",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/forex/historical",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"forex",
+								"historical"
+							]
+						},
+						"description": "Probar error de fecha requerida faltante"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Currency",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/forex/latest?base=INVALID",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"forex",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "base",
+									"value": "INVALID"
+								}
+							]
+						},
+						"description": "Probar error de divisa inválida"
+					},
+					"response": []
+				},
+				{
+					"name": "Invalid Conversion Amount",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"from\": \"USD\",\n  \"to\": \"EUR\",\n  \"amount\": -100\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/forex/convert",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"forex",
+								"convert"
+							]
+						},
+						"description": "Probar error de monto inválido (negativo)"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
